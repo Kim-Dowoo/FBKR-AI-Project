@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 type Menu = {
   name: string;
@@ -27,7 +28,47 @@ const categories = ["전체", "한식", "일식", "양식", "건강식"];
 export default function Home() {
   const [category, setCategory] = useState("전체");
   const [picked, setPicked] = useState<Menu>(menus[0]);
+  const [favoriteCounts, setFavoriteCounts] = useState<Record<string, number>>({});
+  const [likedMenus, setLikedMenus] = useState<Record<string, boolean>>({});
+  const [savingMenu, setSavingMenu] = useState<string | null>(null);
   const filtered = useMemo(() => category === "전체" ? menus : menus.filter((menu) => menu.category === category), [category]);
+
+  const getVisitorId = () => {
+    const storageKey = "oneul-mwo-meokji-visitor";
+    const existing = window.localStorage.getItem(storageKey);
+    if (existing) return existing;
+    const next = crypto.randomUUID();
+    window.localStorage.setItem(storageKey, next);
+    return next;
+  };
+
+  const refreshFavoriteCounts = async () => {
+    if (!supabase) return;
+    const results = await Promise.all(menus.map(async (menu) => {
+      const { count, error } = await supabase.from("menu_favorites").select("menu_name", { count: "exact", head: true }).eq("menu_name", menu.name);
+      return error ? null : [menu.name, count ?? 0] as const;
+    }));
+    setFavoriteCounts(Object.fromEntries(results.filter((result): result is readonly [string, number] => result !== null)));
+  };
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("oneul-mwo-meokji-liked");
+    if (saved) setLikedMenus(JSON.parse(saved) as Record<string, boolean>);
+    void refreshFavoriteCounts();
+  }, []);
+
+  const toggleFavorite = async (menu: Menu) => {
+    if (!supabase || likedMenus[menu.name] || savingMenu) return;
+    setSavingMenu(menu.name);
+    const { error } = await supabase.from("menu_favorites").insert({ menu_name: menu.name, visitor_id: getVisitorId() });
+    if (!error || error.code === "23505") {
+      const nextLiked = { ...likedMenus, [menu.name]: true };
+      setLikedMenus(nextLiked);
+      window.localStorage.setItem("oneul-mwo-meokji-liked", JSON.stringify(nextLiked));
+      setFavoriteCounts((current) => ({ ...current, [menu.name]: (current[menu.name] ?? 0) + (error ? 0 : 1) }));
+    }
+    setSavingMenu(null);
+  };
 
   const pickRandom = () => {
     const pool = filtered.length ? filtered : menus;
@@ -56,7 +97,7 @@ export default function Home() {
       <section className="recommend-section" id="recommend"><div className="container">
         <div className="section-heading"><div><div className="eyebrow"><span /> CURATED FOR YOU</div><h2>오늘의 추천 메뉴</h2></div><div className="date-stamp">2026. 08. 11 <span>화요일</span></div></div>
         <div className="category-bar">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}<div className="filter-meta"><span>지금 가장 인기 있는 메뉴</span><span className="pulse-dot" /></div></div>
-        <div className="content-grid"><div className="menu-list">{filtered.slice(0, 4).map((menu, index) => <article className={`menu-card ${index === 0 ? "featured" : ""}`} key={menu.name} onClick={() => setPicked(menu)}><div className={`food-visual ${menu.accent}`}><span>{menu.emoji}</span>{index === 0 && <b>BEST</b>}</div><div className="menu-info"><div className="menu-top"><span className="tag">{menu.category}</span><span className="heart">♡</span></div><h3>{menu.name}</h3><p>{menu.description}</p><div className="menu-bottom"><strong>{menu.price}</strong><span>⏱ {menu.time}</span><span>★ {menu.rating}</span></div></div></article>)}</div>
+        <div className="content-grid"><div className="menu-list">{filtered.slice(0, 4).map((menu, index) => <article className={`menu-card ${index === 0 ? "featured" : ""}`} key={menu.name} onClick={() => setPicked(menu)}><div className={`food-visual ${menu.accent}`}><span>{menu.emoji}</span>{index === 0 && <b>BEST</b>}</div><div className="menu-info"><div className="menu-top"><span className="tag">{menu.category}</span><button className="heart" style={{ color: likedMenus[menu.name] ? "var(--coral)" : undefined }} aria-label={`${menu.name} 찜하기`} onClick={(event) => { event.stopPropagation(); void toggleFavorite(menu); }}>{likedMenus[menu.name] ? "♥" : "♡"} <small>{favoriteCounts[menu.name] ?? 0}</small></button></div><h3>{menu.name}</h3><p>{menu.description}</p><div className="menu-bottom"><strong>{menu.price}</strong><span>⏱ {menu.time}</span><span>★ {menu.rating}</span></div></div></article>)}</div>
           <aside className="decision-card"><div className="decision-kicker">STILL CAN&apos;T DECIDE?</div><h3>오늘은<br /><em>제가 고를게요.</em></h3><div className="picked-food">{picked.emoji}</div><div className="picked-label">오늘의 선택</div><div className="picked-name">{picked.name}</div><div className="picked-details">{picked.category} · {picked.price}</div><button className="secondary-button" onClick={pickRandom}>다시 뽑기 <span>↻</span></button><div className="scribble">고민은<br />여기까지!</div></aside>
         </div>
       </div></section>
