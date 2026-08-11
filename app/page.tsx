@@ -45,8 +45,8 @@ export default function Home() {
       <section className="hero container" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span /> 오늘의 점심 큐레이터</div>
-          <h1>점심 메뉴,<br /><em>3초면 충분해요.</em></h1>
-          <p>매일 반복되는 고민은 가볍게 덜어내고,<br />오늘 나에게 딱 맞는 한 끼를 찾아보세요.</p>
+          <h1>점심 메뉴,<br /><em>5초면 충분해요.</em></h1>
+          <p>매일 반복되는 고민은 가볍게 덜어내고,<br />오늘 나에게 딱 맞는 맛있는 한 끼를 찾아보세요.</p>
           <div className="hero-actions"><button className="primary-button" onClick={pickRandom}>랜덤으로 골라줘 <span>↗</span></button><button className="text-button" onClick={() => document.getElementById("recommend")?.scrollIntoView({ behavior: "smooth" })}>메뉴 둘러보기 <span>↓</span></button></div>
           <div className="social-proof"><div className="avatars"><span>J</span><span>M</span><span>S</span><span>+</span></div><div><strong>12,840명</strong>이 오늘도 골랐어요</div></div>
         </div>
